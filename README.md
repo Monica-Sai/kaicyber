@@ -38,7 +38,7 @@ A Go-based service for processing and analyzing vulnerability scan results. This
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-org/vuln-scanner.git
+git clone https://github.com/chanduusc/Devops-task.git
 cd vuln-scanner
 ```
 
