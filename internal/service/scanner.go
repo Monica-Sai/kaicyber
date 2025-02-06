@@ -5,6 +5,7 @@ import (
     "database/sql"
     "errors"
 	"encoding/json"
+    "strings"
     "fmt"
     "time"
     "devops-assign/internal/models"
@@ -201,32 +202,13 @@ func (s *ScannerService) GetVulnerabilities(filters models.VulnerabilityFilters)
     return vulnerabilities, nil
 }
 
-// GetVulnerabilityByID retrieves a specific vulnerability by ID
 func (s *ScannerService) GetVulnerabilityByID(id string) (*models.Vulnerability, error) {
-    query := `
-        SELECT 
-            v.vuln_id,
-            v.scan_id,
-            v.severity,
-            v.cvss,
-            v.status,
-            v.package_name,
-            v.current_version,
-            v.fixed_version,
-            v.description,
-            v.published_date,
-            v.link,
-            ARRAY_AGG(rf.factor) as risk_factors
-        FROM vulnerabilities v
-        LEFT JOIN risk_factors rf ON v.vuln_id = rf.vuln_id
-        WHERE v.vuln_id = $1
-        GROUP BY v.vuln_id, v.scan_id, v.severity, v.cvss, v.status, 
-                 v.package_name, v.current_version, v.fixed_version, v.description, 
-                 v.published_date, v.link
-    `
+    query := `SELECT v.vuln_id, v.scan_id, v.severity, v.cvss, v.status, v.package_name, v.current_version, v.fixed_version, v.description, v.published_date, v.link, ARRAY_AGG(rf.factor) as risk_factors FROM vulnerabilities v LEFT JOIN risk_factors rf ON v.vuln_id = rf.vuln_id WHERE v.vuln_id = $1 GROUP BY v.vuln_id, v.scan_id, v.severity, v.cvss, v.status, v.package_name, v.current_version, v.fixed_version, v.description, v.published_date, v.link`
 
     var v models.Vulnerability
     var scanID string
+    var riskFactors string // Change this to string
+
     err := s.db.QueryRow(query, id).Scan(
         &v.ID,
         &scanID,
@@ -239,7 +221,7 @@ func (s *ScannerService) GetVulnerabilityByID(id string) (*models.Vulnerability,
         &v.Description,
         &v.PublishedDate,
         &v.Link,
-        &v.RiskFactors,
+        &riskFactors, // Scan into string first
     )
 
     if err == sql.ErrNoRows {
@@ -247,6 +229,14 @@ func (s *ScannerService) GetVulnerabilityByID(id string) (*models.Vulnerability,
     }
     if err != nil {
         return nil, fmt.Errorf("failed to get vulnerability: %v", err)
+    }
+
+    // Parse the PostgreSQL array string format into string slice
+    riskFactors = strings.Trim(riskFactors, "{}")
+    if riskFactors != "" {
+        v.RiskFactors = strings.Split(riskFactors, ",")
+    } else {
+        v.RiskFactors = []string{}
     }
 
     return &v, nil
